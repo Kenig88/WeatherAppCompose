@@ -2,9 +2,11 @@ package com.kenig.weatherappcompose.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +22,7 @@ import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.pagerTabIndicatorOffset
 import com.google.accompanist.pager.rememberPagerState
 import com.kenig.weatherappcompose.R
+import com.kenig.weatherappcompose.WeatherModel
 import com.kenig.weatherappcompose.ui.theme.Neon
 import kotlinx.coroutines.launch
 
@@ -83,8 +86,7 @@ fun MainCard() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-
-                    ) {
+                ) {
                     IconButton(
                         onClick = { /*TODO*/
 
@@ -95,15 +97,12 @@ fun MainCard() {
                             contentDescription = "im3",
                             tint = Color.White
                         )
-
                     }
-
                     Text(
                         text = "18°/9°",
                         fontSize = 18.sp,
                         color = Color.White
                     )
-
                     IconButton(
                         onClick = { /*TODO*/
 
@@ -121,10 +120,10 @@ fun MainCard() {
     }
 }
 
-@Preview(showBackground = true)
+
 @OptIn(ExperimentalPagerApi::class)
 @Composable
-fun TabLayout() {
+fun TabLayout(daysList: MutableState<List<WeatherModel>>) {
     val tabList = listOf("HOURS", "DAYS")
     val pagerState = rememberPagerState()
     val tabIndex = pagerState.currentPage
@@ -165,8 +164,10 @@ fun TabLayout() {
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(24) {
-                    ListItem()
+                itemsIndexed(
+                    daysList.value
+                ){
+                    _, item -> ListItem(item)
                 }
             }
         }
@@ -174,9 +175,8 @@ fun TabLayout() {
 }
 
 
-@Preview(showBackground = true)
 @Composable
-fun ListItem() {
+fun ListItem(item: WeatherModel) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,28 +194,28 @@ fun ListItem() {
                 modifier = Modifier.padding(start = 5.dp, top = 5.dp),
             ) {
                 Text(
-                    text = "13:00",
+                    text = item.time,
                     color = Color.White,
-                    fontSize = 15.sp
+                    fontSize = 13.sp
                 )
                 Text(
                     modifier = Modifier.padding(bottom = 5.dp),
-                    text = "Light cloudy",
+                    text = item.condition,
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 13.sp,
                 )
             }
             Text(
-                text = "15°C",
-                fontSize = 40.sp,
+                text = item.currentTemp.ifEmpty {"${item.maxTemp}°/${item.minTemp}°"},
+                fontSize = 30.sp,
                 color = Color.White
             )
             AsyncImage(
-                model = "https://cdn.weatherapi.com/weather/64x64/day/176.png",
+                model = "https:${item.icon}",
                 contentDescription = "im4",
                 modifier = Modifier
                     .padding(top = 5.dp, end = 5.dp, bottom = 5.dp)
-                    .size(35.dp)
+                    .size(30.dp)
             )
         }
     }
