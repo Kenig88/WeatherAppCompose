@@ -1,19 +1,17 @@
 package com.kenig.weatherappcompose.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -25,12 +23,13 @@ import com.kenig.weatherappcompose.R
 import com.kenig.weatherappcompose.WeatherModel
 import com.kenig.weatherappcompose.ui.theme.Neon
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 
 //1
-@Preview(showBackground = true)
 @Composable
-fun MainCard() {
+fun MainCard(currentDay: MutableState<WeatherModel>, onClickSync: () -> Unit, onClickSearch: () -> Unit) { //5.5 //6
     Column(
         modifier = Modifier.padding(5.dp)
     ) {
@@ -51,12 +50,12 @@ fun MainCard() {
                 ) {
                     Text(
                         modifier = Modifier.padding(top = 5.dp, start = 5.dp),
-                        text = "21.05.2023 06:08",
+                        text = currentDay.value.time,
                         fontSize = 15.sp,
                         color = Color.White
                     )
                     AsyncImage(
-                        model = "https://cdn.weatherapi.com/weather/64x64/day/116.png",
+                        model = "https:"+currentDay.value.icon,
                         contentDescription = "im2",
                         modifier = Modifier
                             .size(35.dp)
@@ -67,17 +66,20 @@ fun MainCard() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Moscow",
+                        text = currentDay.value.city,
                         fontSize = 24.sp,
                         color = Color.White
                     )
                     Text(
-                        text = "11°",
+                        text = if(currentDay.value.currentTemp.isNotEmpty())
+                            currentDay.value.currentTemp
+                        else "${currentDay.value.maxTemp.toFloat().toInt()}°" +
+                                "/${currentDay.value.minTemp.toFloat().toInt()}°",
                         fontSize = 65.sp,
                         color = Color.White
                     )
                     Text(
-                        text = "Сloudy",
+                        text = currentDay.value.condition,
                         fontSize = 16.sp,
                         color = Color.White
                     )
@@ -88,8 +90,8 @@ fun MainCard() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     IconButton(
-                        onClick = { /*TODO*/
-
+                        onClick = {
+                            onClickSearch.invoke()
                         }
                     ) {
                         Icon(
@@ -99,13 +101,13 @@ fun MainCard() {
                         )
                     }
                     Text(
-                        text = "18°/9°",
+                        text = "${currentDay.value.maxTemp.toFloat().toInt()}°" +
+                                "/${currentDay.value.minTemp.toFloat().toInt()}°",
                         fontSize = 18.sp,
                         color = Color.White
                     )
                     IconButton(
-                        onClick = { /*TODO*/
-
+                        onClick = { onClickSync.invoke() //6.1
                         }
                     ) {
                         Icon(
@@ -123,7 +125,8 @@ fun MainCard() {
 
 @OptIn(ExperimentalPagerApi::class)
 @Composable
-fun TabLayout(daysList: MutableState<List<WeatherModel>>) {
+fun TabLayout(daysList: MutableState<List<WeatherModel>>,
+              currentDay: MutableState<WeatherModel>) { //4.6
     val tabList = listOf("HOURS", "DAYS")
     val pagerState = rememberPagerState()
     val tabIndex = pagerState.currentPage
@@ -161,26 +164,39 @@ fun TabLayout(daysList: MutableState<List<WeatherModel>>) {
             state = pagerState,
             modifier = Modifier.weight(1.0f)
         ) { index ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                itemsIndexed(
-                    daysList.value
-                ){
-                    _, item -> ListItem(item)
-                }
+            val list = when(index) { //6.2
+                0 -> getWeatherByHours(currentDay.value.hours)
+                1 -> daysList.value
+                else -> daysList.value
             }
+            MainList(list, currentDay)
         }
     }
 }
 
+@Composable //6
+fun MainList(list: List<WeatherModel>, currentDay: MutableState<WeatherModel>){
+    LazyColumn(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        itemsIndexed(
+            list
+        ){
+                _, item -> ListItem(item, currentDay)
+        }
+    }
+}
 
 @Composable
-fun ListItem(item: WeatherModel) {
+fun ListItem(item: WeatherModel, currentDay: MutableState<WeatherModel>) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 5.dp),
+            .padding(top = 5.dp)
+            .clickable {
+                if (item.hours.isEmpty()) return@clickable
+                currentDay.value = item
+            },
         backgroundColor = Neon,
         elevation = 0.dp,
         shape = RoundedCornerShape(10.dp),
@@ -220,3 +236,66 @@ fun ListItem(item: WeatherModel) {
         }
     }
 }
+
+
+private fun getWeatherByHours(hours: String): List<WeatherModel> { //6.1
+    if (hours.isEmpty()) return listOf()
+    val hoursArray = JSONArray(hours)
+    val list = ArrayList<WeatherModel>()
+    for (i in 0 until hoursArray.length()) {
+        val item = hoursArray[i] as JSONObject
+        list.add(
+            WeatherModel(
+                "",
+                item.getString("time"),
+                item.getString("temp_c").toFloat().toInt().toString()+"°",
+                item.getJSONObject("condition").getString("text"),
+                item.getJSONObject("condition").getString("icon"),
+                "",
+                "",
+                ""
+            )
+        )
+    }
+    return list
+}
+
+@Composable
+fun DialogSearch(dialogState: MutableState<Boolean>, onSubmit: (String) -> Unit){
+    val dialogText = remember{
+        mutableStateOf("")
+    }
+    AlertDialog(
+        onDismissRequest = {
+            dialogState.value = false
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSubmit(dialogText.value)
+                dialogState.value = false
+            }) {
+                Text(text = "OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                dialogState.value = false
+            }) {
+                Text(text = "Cancel")
+            }
+        },
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ){
+                Text(
+                    text = "Enter the name of the city:")
+                TextField(
+                    value = dialogText.value,
+                    onValueChange = { dialogText.value = it }
+                )
+            }
+        }
+    )
+}
+
